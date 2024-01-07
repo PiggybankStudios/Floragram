@@ -31,7 +31,7 @@ Date:   12\19\2023
 #define POINTER_FRAME_TIME 300 //ms
 #define CURRENT_WORD_MARGIN_LEFT 5 //px
 #define CURRENT_WORD_MARGIN_BOTTOM 5 //px
-#define NUM_WORDS_EXPECTED_IN_DICTIONARY 10000 //words
+#define NUM_WORDS_EXPECTED_IN_DICTIONARY 30000 //words
 
 #define MAX_WORD_ENTRY_LENGTH 32 //chars
 
@@ -46,6 +46,8 @@ struct GameState_t
 	SpriteSheet_t pointerSheet;
 	SpriteSheet_t leavesSheet;
 	
+	bool loadingDictionary;
+	bool renderedLoadingScreen;
 	WordTree_t dictionary;
 	
 	char letters[NUM_LEAVES];

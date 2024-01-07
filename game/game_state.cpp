@@ -41,8 +41,64 @@ void StartAppState_Game(bool initialize, AppState_t prevState, MyStr_t transitio
 		game->currentWord.chars = &game->wordEntryBuffer[0];
 		game->currentWord.length = 0;
 		
+		game->loadingDictionary = true;
+		game->renderedLoadingScreen = false;
 		CreateWordTree(&game->dictionary, mainHeap, NUM_WORDS_EXPECTED_IN_DICTIONARY);
 		
+		game->initialized = true;
+		FreeScratchArena(scratch);
+	}
+	
+	game->mainMenuItem = pd->system->addMenuItem("Main Menu", GameMainMenuSelectedCallback, nullptr);
+}
+
+// +--------------------------------------------------------------+
+// |                             Stop                             |
+// +--------------------------------------------------------------+
+void StopAppState_Game(bool deinitialize, AppState_t nextState)
+{
+	pd->system->removeMenuItem(game->mainMenuItem);
+	game->mainMenuItem = nullptr;
+	
+	if (deinitialize)
+	{
+		FreeFont(&game->mainFont);
+		FreeSpriteSheet(&game->leavesSheet);
+		FreeSpriteSheet(&game->pointerSheet);
+		FreeWordTree(&game->dictionary);
+		ClearPointer(game);
+	}
+}
+
+// +--------------------------------------------------------------+
+// |                            Layout                            |
+// +--------------------------------------------------------------+
+void GameUiLayout()
+{
+	
+}
+
+// +--------------------------------------------------------------+
+// |                            Update                            |
+// +--------------------------------------------------------------+
+void UpdateAppState_Game()
+{
+	MemArena_t* scratch = GetScratchArena();
+	
+	// +==============================+
+	// |     Return to Main Menu      |
+	// +==============================+
+	if (game->mainMenuRequested)
+	{
+		game->mainMenuRequested = false;
+		PopAppState();
+	}
+	
+	// +==============================+
+	// |       Load Dictionary        |
+	// +==============================+
+	if (game->loadingDictionary && game->renderedLoadingScreen)
+	{
 		u8 totalDictionaryTimerIndex = StartPerfTime();
 		u64 numWordsInDictionary = 0;
 		const char* dictionaryPaths[] = DICTIONARY_FILE_PATHS;
@@ -50,7 +106,8 @@ void StartAppState_Game(bool initialize, AppState_t prevState, MyStr_t transitio
 		{
 			u8 readFileTimerIndex = StartPerfTime();
 			MyStr_t dictionaryFileContents;
-			if (ReadEntireFile(false, NewStr(dictionaryPaths[dIndex]), &dictionaryFileContents, mainHeap))
+			PushMemMark(scratch);
+			if (ReadEntireFile(false, NewStr(dictionaryPaths[dIndex]), &dictionaryFileContents, scratch))
 			{
 				u64 readFileTime = EndPerfTime(readFileTimerIndex);
 				u64 lineStartIndex = 0;
@@ -91,55 +148,15 @@ void StartAppState_Game(bool initialize, AppState_t prevState, MyStr_t transitio
 				u64 readFileTime = EndPerfTime(readFileTimerIndex);
 				PrintLine_E("Failed to open/read dictionary at \"%s\" " PERF_FORMAT_STR, dictionaryPaths[dIndex], PERF_FORMAT(readFileTime));
 			}
+			PopMemMark(scratch);
 		}
 		u64 totalDictionaryTime = EndPerfTime(totalDictionaryTimerIndex);
-		PrintLine_I("Loaded %u dictionaries in " PERF_FORMAT_STR, ArrayCount(dictionaryPaths), PERF_FORMAT(totalDictionaryTime));
 		
-		game->initialized = true;
-		FreeScratchArena(scratch);
+		PrintLine_I("Loaded %u dictionaries in " PERF_FORMAT_STR " (%llu words total)", ArrayCount(dictionaryPaths), PERF_FORMAT(totalDictionaryTime), numWordsInDictionary);
+		game->loadingDictionary = false;
 	}
 	
-	game->mainMenuItem = pd->system->addMenuItem("Main Menu", GameMainMenuSelectedCallback, nullptr);
-}
-
-// +--------------------------------------------------------------+
-// |                             Stop                             |
-// +--------------------------------------------------------------+
-void StopAppState_Game(bool deinitialize, AppState_t nextState)
-{
-	pd->system->removeMenuItem(game->mainMenuItem);
-	game->mainMenuItem = nullptr;
-	
-	if (deinitialize)
-	{
-		FreeWordTree(&game->dictionary);
-		ClearPointer(game);
-	}
-}
-
-// +--------------------------------------------------------------+
-// |                            Layout                            |
-// +--------------------------------------------------------------+
-void GameUiLayout()
-{
-	
-}
-
-// +--------------------------------------------------------------+
-// |                            Update                            |
-// +--------------------------------------------------------------+
-void UpdateAppState_Game()
-{
-	MemArena_t* scratch = GetScratchArena();
-	
-	// +==============================+
-	// |     Return to Main Menu      |
-	// +==============================+
-	if (game->mainMenuRequested)
-	{
-		game->mainMenuRequested = false;
-		PopAppState();
-	}
+	if (game->loadingDictionary) { return; } // <==== Early out!
 	
 	// +==============================+
 	// |    Btn_A Selects a Letter    |
@@ -215,18 +232,28 @@ void RenderAppState_Game(bool isOnTop)
 	MemArena_t* scratch = GetScratchArena();
 	GameUiLayout();
 	
-	pd->graphics->clear(kColorBlack);
-	PdSetDrawMode(kDrawModeInverted);
-	
-	#if 0
-	//TODO: Remove me!
-	PdBindFont(&pig->debugFont);
-	PdDrawText("The game...", NewVec2i(180, 115));
-	#endif
-	
 	r32 crankAngle = AngleFixR32(input->crankAngleRadians + CRANK_ANGLE_OFFSET);
 	v2i flowerCenter = NewVec2i(ScreenSize.width/2, ScreenSize.height/2);
 	r32 flowerRadius = (r32)game->leavesSheet.frameSize.width;
+	
+	pd->graphics->clear(kColorBlack);
+	PdSetDrawMode(kDrawModeInverted);
+	
+	// +==============================+
+	// |     Render Loading Text      |
+	// +==============================+
+	if (game->loadingDictionary)
+	{
+		MyStr_t loadingText = NewStr("Loading...");
+		v2i loadingTextSize = MeasureText(game->mainFont.font, loadingText);
+		v2i loadingTextPos = NewVec2i(ScreenSize.width/2 - loadingTextSize.width/2, ScreenSize.height/2 - loadingTextSize.height/2);
+		PdBindFont(&game->mainFont);
+		PdDrawText(loadingText, loadingTextPos);
+		
+		FreeScratchArena(scratch);
+		game->renderedLoadingScreen = true;
+		return;
+	}
 	
 	// +==============================+
 	// |        Render Leaves         |
