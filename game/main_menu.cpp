@@ -38,10 +38,62 @@ void UpdateAppState_MainMenu()
 {
 	MemArena_t* scratch = GetScratchArena();
 	
-	//TODO: Remove me!
+	// +==============================+
+	// |      Btn_A Goes to Game      |
+	// +==============================+
 	if (BtnPressed(Btn_A))
 	{
-		SetSourceWord("robbinsa"); //TODO: Make this an option or something
+		// +===============================+
+		// | Choose a Random 8-Letter Word |
+		// +===============================+
+		MyStr_t dictionaryFileContents;
+		if (ReadEntireFile(false, NewStr("Resources/Text/Dictionaries/common_words8.txt"), &dictionaryFileContents, scratch))
+		{
+			u64 numWords = 0;
+			u64 wordStartIndex = 0;
+			for (u64 cIndex = 0; cIndex < dictionaryFileContents.length; cIndex++)
+			{
+				if (dictionaryFileContents.chars[cIndex] == '\r' || dictionaryFileContents.chars[cIndex] == '\r')
+				{
+					if (cIndex > wordStartIndex)
+					{
+						numWords++;
+					}
+					wordStartIndex = cIndex+1;
+				}
+			}
+			
+			u64 chosenWordIndex = GetRandU64(&pig->random, 0, numWords);
+			DebugAssert(chosenWordIndex < numWords);
+			PrintLine_D("Choosing source word %llu/%llu", chosenWordIndex+1, numWords);
+			
+			u64 wordIndex = 0;
+			wordStartIndex = 0;
+			for (u64 cIndex = 0; cIndex < dictionaryFileContents.length; cIndex++)
+			{
+				if (dictionaryFileContents.chars[cIndex] == '\r' || dictionaryFileContents.chars[cIndex] == '\n')
+				{
+					if (cIndex > wordStartIndex)
+					{
+						if (wordIndex >= chosenWordIndex)
+						{
+							MyStr_t chosenWord = NewStr(cIndex - wordStartIndex, &dictionaryFileContents.chars[wordStartIndex]);
+							PrintLine_D("Choosing source word: \"%.*s\"", StrPrint(chosenWord));
+							SetSourceWord(chosenWord);
+							break;
+						}
+						wordIndex++;
+					}
+					wordStartIndex = cIndex+1;
+				}
+			}
+			Assert(wordIndex == chosenWordIndex || wordIndex == numWords);
+		}
+		else
+		{
+			SetSourceWord("protests");
+		}
+		
 		PushAppState(AppState_Game);
 	}
 	

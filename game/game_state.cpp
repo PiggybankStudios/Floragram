@@ -16,6 +16,7 @@ void GameMainMenuSelectedCallback(void* userPntr)
 
 bool IsValidWord(MyStr_t sourceWord, MyStr_t word)
 {
+	if (StrEquals(sourceWord, word)) { return false; }
 	for (u64 wIndex = 0; wIndex < word.length; wIndex++)
 	{
 		char c = word.chars[wIndex];
@@ -87,7 +88,7 @@ void StartAppState_Game(bool initialize, AppState_t prevState, MyStr_t transitio
 		
 		game->loadingDictionary = true;
 		game->renderedLoadingScreen = false;
-		CreateWordTree(&game->dictionary, mainHeap, NUM_WORDS_EXPECTED_IN_DICTIONARY);
+		CreateWordTree(&game->dictionary, mainHeap, NUM_NODES_EXPECTED_IN_DICTIONARY);
 		
 		CreateVarArray(&game->validWords, mainHeap, sizeof(ValidWord_t), NUM_VALID_WORDS_EXPECTED);
 		game->nextValidWordId = 1;
@@ -121,6 +122,7 @@ void StopAppState_Game(bool deinitialize, AppState_t nextState)
 		FreeSpriteSheet(&game->leavesSheet);
 		FreeSpriteSheet(&game->pointerSheet);
 		FreeWordTree(&game->dictionary);
+		FreeString(mainHeap, &game->previousWord);
 		ClearPointer(game);
 	}
 }
@@ -298,6 +300,10 @@ void UpdateAppState_Game()
 			game->currentWord.length++;
 			game->currentWordChanged = true;
 		}
+		else
+		{
+			game->incorrectAnimProgress = 1.0f;
+		}
 	}
 	
 	// +==============================+
@@ -311,6 +317,17 @@ void UpdateAppState_Game()
 			game->currentWord.length--;
 			game->currentWordChanged = true;
 		}
+	}
+	
+	// +==============================+
+	// |    Btn_Down Recalls Word     |
+	// +==============================+
+	if (BtnPressed(Btn_Down) && game->currentWord.length == 0 && !IsEmptyStr(game->previousWord))
+	{
+		HandleBtnExtended(Btn_Down);
+		MyMemCopy(&game->wordEntryBuffer[0], game->previousWord.chars, game->previousWord.length);
+		game->currentWord.length = game->previousWord.length;
+		game->currentWordChanged = true;
 	}
 	
 	// +==============================+
@@ -352,6 +369,8 @@ void UpdateAppState_Game()
 				leaf->value64 = game->nextValidWordId;
 				game->numValidWordsFound++;
 				
+				FreeString(mainHeap, &game->previousWord);
+				game->previousWord = AllocString(mainHeap, &game->currentWord);
 				game->currentWord.length = 0;
 				game->currentWordChanged = true;
 				
@@ -456,7 +475,7 @@ void RenderAppState_Game(bool isOnTop)
 	// +==============================+
 	{
 		v2 pointerTipPos = ToVec2(flowerCenter) + Vec2FromAngle(crankAngle, flowerRadius + POINTER_TO_CIRCLE_MARGIN);
-		v2 pointerCenterPos = pointerTipPos + Vec2FromAngle(input->crankAngleRadians, (r32)game->pointerSheet.frameSize.height/2);
+		v2 pointerCenterPos = pointerTipPos + Vec2FromAngle(crankAngle, (r32)game->pointerSheet.frameSize.height/2);
 		v2i pointerRotationOffset = NewVec2i(game->pointerSheet.frameSize.width/2, game->pointerSheet.frameSize.height);
 		obb2 pointerObb = NewObb2D(pointerCenterPos, ToVec2(game->pointerSheet.frameSize), input->crankAngleRadians);
 		i32 frameIndex = (ProgramTime % (POINTER_FRAME_TIME * game->pointerSheet.numFramesX)) / POINTER_FRAME_TIME;
@@ -550,6 +569,40 @@ void RenderAppState_Game(bool isOnTop)
 		}
 		
 		PdSetClipRec(oldClipRec);
+	}
+	
+	// +==============================+
+	// |    Render Button Prompts     |
+	// +==============================+
+	{
+		PdBindFont(&pig->debugFont);
+		reci btnPromptRec = NewReci(
+			ScreenSize.width - 5 - gl->btnPromptsSheet.frameSize.width,
+			ScreenSize.height - 5 - gl->btnPromptsSheet.frameSize.height,
+			gl->btnPromptsSheet.frameSize
+		);
+		
+		#define DRAW_BUTTON_PROMPT(frame, displayStr) do                   \
+		{                                                                  \
+			v2i textSize = MeasureText(boundFont->font, displayStr);       \
+			v2i textPos = NewVec2i(                                        \
+				btnPromptRec.x - 2 - textSize.width,                       \
+				btnPromptRec.y + btnPromptRec.height/2 - textSize.height/2 \
+			);                                                             \
+			LCDBitmapDrawMode oldDrawMode = PdSetDrawMode(kDrawModeCopy);  \
+			PdDrawSheetFrame(gl->btnPromptsSheet, frame, btnPromptRec);    \
+			PdSetDrawMode(oldDrawMode);                                    \
+			PdDrawText(displayStr, textPos);                               \
+			btnPromptRec.y -= btnPromptRec.height + 3;                     \
+		} while(0)
+		
+		DRAW_BUTTON_PROMPT(NewVec2i(0, 0), NewStr("Add"));
+		DRAW_BUTTON_PROMPT(NewVec2i(1, 0), NewStr("Remove"));
+		DRAW_BUTTON_PROMPT(NewVec2i(3, 1), NewStr("Submit"));
+		if (game->currentWord.length == 0 && !IsEmptyStr(game->previousWord))
+		{
+			DRAW_BUTTON_PROMPT(NewVec2i(5, 1), NewStr("Recall"));
+		}
 	}
 	
 	// +==============================+

@@ -1,8 +1,14 @@
 
 # TODO List
-	[ ] 
+	[ ] Make a check/cross sprite sheet(s) to use for indicating if the word is valid or not (esp. in word list, when game is forfeit)
 	
 # Misc. Notes
 	[ ] "https://www.kith.org/words/2022/03/19/word-lists-for-writing-computer-word-games/"
 	[ ] SCOWL word list - "http://wordlist.aspell.net/"
-	
+
+# Completed Items
+[X] Fix rotation origin of crank pointer
+[X] Choose random word when entering game state from main menu
+[X] Fix expected word counts (memory)
+[X] Add button hints
+[X] Recall previously entered word with Btn_Down

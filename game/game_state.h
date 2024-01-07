@@ -12,27 +12,29 @@ Date:   12\19\2023
 #if 0
 #define DICTIONARY_FILE_PATHS { "Resources/Text/Dictionaries/common_words3.txt" } //TODO: Remove me!
 #else
-#define DICTIONARY_FILE_PATHS {                      \
-	"Resources/Text/Dictionaries/common_words3.txt", \
-	"Resources/Text/Dictionaries/common_words4.txt", \
-	"Resources/Text/Dictionaries/common_words5.txt", \
-	"Resources/Text/Dictionaries/common_words6.txt", \
-	"Resources/Text/Dictionaries/common_words7.txt", \
-	"Resources/Text/Dictionaries/common_words8.txt", \
-	"Resources/Text/Dictionaries/common_words9.txt", \
+#define DICTIONARY_FILE_PATHS {                       \
+	"Resources/Text/Dictionaries/common_words3.txt",  \
+	"Resources/Text/Dictionaries/common_words4.txt",  \
+	"Resources/Text/Dictionaries/common_words5.txt",  \
+	"Resources/Text/Dictionaries/common_words6.txt",  \
+	"Resources/Text/Dictionaries/common_words7.txt",  \
+	"Resources/Text/Dictionaries/common_words8.txt",  \
+	"Resources/Text/Dictionaries/common_words9.txt",  \
+	"Resources/Text/Dictionaries/common_words10.txt", \
+	"Resources/Text/Dictionaries/common_words11.txt", \
+	"Resources/Text/Dictionaries/common_words12.txt", \
 }
 #endif
 
-#define NUM_LEAVES 8
-#define NUM_WORDS_EXPECTED_IN_DICTIONARY 30000 //words
-#define NUM_VALID_WORDS_EXPECTED         30000 //words
+#define NUM_NODES_EXPECTED_IN_DICTIONARY 512 //words
+#define NUM_VALID_WORDS_EXPECTED         256 //words
 #define CRANK_ANGLE_OFFSET (-HalfPi32)
 
 #define MIN_WORD_LENGTH       3 //chars
-#define MAX_VALID_WORD_LENGTH 9 //chars
-#define MAX_WORD_ENTRY_LENGTH 32 //chars
+#define MAX_VALID_WORD_LENGTH 12 //chars
+#define MAX_WORD_ENTRY_LENGTH 12 //chars
 
-#define POINTER_TO_CIRCLE_MARGIN   10 //px
+#define POINTER_TO_CIRCLE_MARGIN   4 //px
 #define NUM_FOUND_MARGIN_RIGHT     5 //px
 #define NUM_FOUND_MARGIN_TOP       5 //px
 #define VALIDITY_MARGIN_LEFT       5 //px
@@ -81,6 +83,7 @@ struct GameState_t
 	
 	char wordEntryBuffer[MAX_WORD_ENTRY_LENGTH];
 	
+	MyStr_t previousWord;
 	MyStr_t currentWord;
 	bool currentWordChanged;
 	bool currentWordIsValid;
