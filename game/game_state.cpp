@@ -159,6 +159,14 @@ void UpdateAppState_Game()
 	if (game->loadingDictionary) { return; } // <==== Early out!
 	
 	// +==============================+
+	// |    Update Incorrect Anim     |
+	// +==============================+
+	if (game->incorrectAnimProgress > 0.0f)
+	{
+		UpdateAnimationDown(&game->incorrectAnimProgress, INCORRECT_SHAKE_ANIM_TIME);
+	}
+	
+	// +==============================+
 	// |    Btn_A Selects a Letter    |
 	// +==============================+
 	if (BtnPressed(Btn_A))
@@ -193,7 +201,7 @@ void UpdateAppState_Game()
 	if (game->currentWordChanged)
 	{
 		game->currentWordChanged = false;
-		if (game->currentWord.length > 0)
+		if (game->currentWord.length >= MIN_WORD_LENGTH)
 		{
 			WordTreeLeaf_t* dictionaryLeaf = WordTreeGetLeaf(&game->dictionary, game->currentWord);
 			game->currentWordIsValid = (dictionaryLeaf != nullptr && dictionaryLeaf->value64 != 0);
@@ -211,13 +219,22 @@ void UpdateAppState_Game()
 	if (BtnPressed(Btn_Up))
 	{
 		HandleBtnExtended(Btn_Up);
-		if (game->currentWord.length > 0)
+		if (game->currentWord.length > MIN_WORD_LENGTH)
 		{
-			
+			if (game->currentWordIsValid)
+			{
+				//TODO: Implement me!
+				game->currentWord.length = 0;
+				game->currentWordChanged = true;
+			}
+			else
+			{
+				game->incorrectAnimProgress = 1.0f;
+			}
 		}
 		else
 		{
-			
+			PrintLine_W("Please enter a %d character or more word!", MIN_WORD_LENGTH);
 		}
 	}
 	
@@ -280,7 +297,7 @@ void RenderAppState_Game(bool isOnTop)
 		PdDrawSheetFrame(game->leavesSheet, NewVec2i(lIndex, 0), leafRec);
 		PdSetDrawMode(isLeafSelected ? kDrawModeCopy : kDrawModeInverted);
 		PdDrawSheetFrame(game->leavesSheet, NewVec2i(lIndex, 1), leafRec);
-		// PdSetDrawMode(isLeafSelected ? kDrawModeInverted : kDrawModeCopy);
+		PdSetDrawMode(isLeafSelected ? kDrawModeInverted : kDrawModeCopy);
 		PdDrawText(letterStr, letterDrawPos);
 		PdSetDrawMode(kDrawModeInverted);
 	}
@@ -302,8 +319,13 @@ void RenderAppState_Game(bool isOnTop)
 	// +==============================+
 	{
 		v2i currentWordPos = NewVec2i(CURRENT_WORD_MARGIN_LEFT, ScreenSize.height - CURRENT_WORD_MARGIN_BOTTOM - game->mainFont.lineHeight);
+		if (game->incorrectAnimProgress > 0.0f)
+		{
+			i32 shakeStrength = RoundR32i(LerpR32(INCORRECT_SHAKE_STRENGTH_MIN, INCORRECT_SHAKE_STRENGTH_MAX, game->incorrectAnimProgress));
+			currentWordPos.x += GetRandI32(&pig->random, 0, shakeStrength);
+		}
 		PdBindFont(&game->mainFont);
-		PdSetDrawMode(kDrawModeNXOR);
+		PdSetDrawMode(kDrawModeXOR);
 		PdDrawText(game->currentWord, currentWordPos);
 		PdSetDrawMode(kDrawModeInverted);
 	}
@@ -311,11 +333,12 @@ void RenderAppState_Game(bool isOnTop)
 	// +==============================+
 	// |       Render Validity        |
 	// +==============================+
+	if (game->currentWord.length >= MIN_WORD_LENGTH)
 	{
 		v2i validTextPos = NewVec2i(5, 5);
 		if (game->currentWordIsValid) { validTextPos.y = RoundR32i(Oscillate(5, 10, 2000)); }
 		PdBindFont(&game->mainFont);
-		PdSetDrawMode(kDrawModeNXOR);
+		PdSetDrawMode(kDrawModeXOR);
 		PdDrawText(game->currentWordIsValid ? "Valid!" : "Nope", validTextPos);
 		PdSetDrawMode(kDrawModeInverted);
 	}

@@ -7,7 +7,7 @@ set ProjectNameSafe=Floragram
 set DebugBuild=1
 set DeveloperBuild=1
 set SimulatorBuild=1
-set BuildBoth=1
+set BuildBoth=0
 set DemoBuild=0
 set AssertionsEnabled=1
 
