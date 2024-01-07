@@ -25,21 +25,39 @@ Date:   12\19\2023
 
 #define NUM_LEAVES 8
 #define NUM_WORDS_EXPECTED_IN_DICTIONARY 30000 //words
+#define NUM_VALID_WORDS_EXPECTED         30000 //words
 #define CRANK_ANGLE_OFFSET (-HalfPi32)
 
 #define MIN_WORD_LENGTH       3 //chars
+#define MAX_VALID_WORD_LENGTH 9 //chars
 #define MAX_WORD_ENTRY_LENGTH 32 //chars
 
-#define POINTER_TO_CIRCLE_MARGIN 10 //px
-#define CURRENT_WORD_MARGIN_LEFT 5 //px
+#define POINTER_TO_CIRCLE_MARGIN   10 //px
+#define NUM_FOUND_MARGIN_RIGHT     5 //px
+#define NUM_FOUND_MARGIN_TOP       5 //px
+#define VALIDITY_MARGIN_LEFT       5 //px
+#define VALIDITY_MARGIN_TOP        5 //px
+#define VALIDITY_BOB_AMOUNT        8 //px
+#define CURRENT_WORD_MARGIN_LEFT   5 //px
 #define CURRENT_WORD_MARGIN_BOTTOM 5 //px
-#define LEAF_LETTER_SPREAD_RADIUS 0.7f //percentage of total flower radius
-#define LEAVES_ARC_LENGTH (TwoPi32 / NUM_LEAVES) //radians
+#define WORD_LIST_MARGIN_LEFT      5 //px
+#define WORD_LIST_MARGIN_RIGHT     1 //px
+#define LEAF_LETTER_SPREAD_RADIUS  0.7f //percentage of total flower radius
+#define LEAVES_ARC_LENGTH          (TwoPi32 / NUM_LEAVES) //radians
 
 #define POINTER_FRAME_TIME 300 //ms
 #define INCORRECT_SHAKE_ANIM_TIME  400 //ms
 #define INCORRECT_SHAKE_STRENGTH_MIN 2
 #define INCORRECT_SHAKE_STRENGTH_MAX 10
+#define VALIDITY_BOB_PERIOD 2000 //ms
+#define WORD_LIST_PAGE_TURN_ANIM_TIME 100 //ms
+
+struct ValidWord_t
+{
+	bool guessed;
+	u64 id;
+	MyStr_t word;
+};
 
 struct GameState_t
 {
@@ -55,7 +73,10 @@ struct GameState_t
 	bool loadingDictionary;
 	bool renderedLoadingScreen;
 	WordTree_t dictionary;
+	VarArray_t validWords; //ValidWord_t
+	u64 nextValidWordId;
 	
+	MyStr_t sourceWord;
 	char letters[NUM_LEAVES];
 	
 	char wordEntryBuffer[MAX_WORD_ENTRY_LENGTH];
@@ -63,7 +84,21 @@ struct GameState_t
 	MyStr_t currentWord;
 	bool currentWordChanged;
 	bool currentWordIsValid;
+	bool currentWordIsNotGuessed;
 	r32 incorrectAnimProgress;
+	u64 numValidWordsFound;
+	
+	i32 wordListNumRows;
+	u64 numWordListPages;
+	u64 currentWordListPage;
+	r32 currentWordListPageAnim;
+	
+	r32 flowerRadius;
+	reci flowerRec;
+	reci validityTextRec;
+	reci numFoundTextRec;
+	reci currentWordRec;
+	reci wordListRec;
 };
 
 #endif //  _GAME_STATE_H

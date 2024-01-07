@@ -14,6 +14,48 @@ void GameMainMenuSelectedCallback(void* userPntr)
 	game->mainMenuRequested = true;
 }
 
+bool IsValidWord(MyStr_t sourceWord, MyStr_t word)
+{
+	for (u64 wIndex = 0; wIndex < word.length; wIndex++)
+	{
+		char c = word.chars[wIndex];
+		bool isValidChar = false;
+		for (u64 sIndex = 0; sIndex < sourceWord.length; sIndex++)
+		{
+			if (sourceWord.chars[sIndex] == c) { isValidChar = true; break; }
+		}
+		if (!isValidChar) { return false; }
+	}
+	return true;
+}
+
+ValidWord_t* FindValidWordById(u64 id)
+{
+	VarArrayLoop(&game->validWords, wIndex)
+	{
+		VarArrayLoopGet(ValidWord_t, validWord, &game->validWords, wIndex);
+		if (validWord->id == id) { return validWord; }
+	}
+	return nullptr;
+}
+
+// +==============================+
+// |       WordsSortingFunc       |
+// +==============================+
+// i32 WordsSortingFunc(const void* left, const void* right, void* contextPntr)
+COMPARE_FUNC_DEFINITION(WordsSortingFunc)
+{
+	UNUSED(contextPntr);
+	ValidWord_t* leftWord = (ValidWord_t*)left;
+	ValidWord_t* rightWord = (ValidWord_t*)right;
+	if (leftWord->word.length > rightWord->word.length) { return 1; }
+	else if (leftWord->word.length < rightWord->word.length) { return -1; }
+	else
+	{
+		return MyStrCompare(leftWord->word.chars, rightWord->word.chars, leftWord->word.length);
+	}
+}
+
 // +--------------------------------------------------------------+
 // |                            Start                             |
 // +--------------------------------------------------------------+
@@ -38,12 +80,19 @@ void StartAppState_Game(bool initialize, AppState_t prevState, MyStr_t transitio
 		{
 			game->letters[lIndex] = GetLowercaseAnsiiChar(gl->sourceWord.chars[lIndex]);
 		}
+		game->sourceWord = NewStr(NUM_LEAVES, &game->letters[0]);
+		
 		game->currentWord.chars = &game->wordEntryBuffer[0];
 		game->currentWord.length = 0;
 		
 		game->loadingDictionary = true;
 		game->renderedLoadingScreen = false;
 		CreateWordTree(&game->dictionary, mainHeap, NUM_WORDS_EXPECTED_IN_DICTIONARY);
+		
+		CreateVarArray(&game->validWords, mainHeap, sizeof(ValidWord_t), NUM_VALID_WORDS_EXPECTED);
+		game->nextValidWordId = 1;
+		
+		game->numValidWordsFound = 0;
 		
 		game->initialized = true;
 		FreeScratchArena(scratch);
@@ -62,6 +111,12 @@ void StopAppState_Game(bool deinitialize, AppState_t nextState)
 	
 	if (deinitialize)
 	{
+		VarArrayLoop(&game->validWords, wIndex)
+		{
+			VarArrayLoopGet(ValidWord_t, validWord, &game->validWords, wIndex);
+			FreeString(mainHeap, &validWord->word);
+		}
+		FreeVarArray(&game->validWords);
 		FreeFont(&game->mainFont);
 		FreeSpriteSheet(&game->leavesSheet);
 		FreeSpriteSheet(&game->pointerSheet);
@@ -75,7 +130,41 @@ void StopAppState_Game(bool deinitialize, AppState_t nextState)
 // +--------------------------------------------------------------+
 void GameUiLayout()
 {
+	MemArena_t* scratch = GetScratchArena();
 	
+	game->flowerRadius = (r32)game->leavesSheet.frameSize.width;
+	game->flowerRec.size = Vec2iFill((i32)game->flowerRadius * 2);
+	game->flowerRec.x = ScreenSize.width/2 - game->flowerRec.width/2;
+	game->flowerRec.y = ScreenSize.height/2 - game->flowerRec.height/2;
+	
+	const char* validityText = (game->currentWordIsValid ? (game->currentWordIsNotGuessed ? "Valid!" : "Already Found") : "Nope");
+	game->validityTextRec.size = MeasureText(game->mainFont.font, NewStr(validityText));
+	game->validityTextRec.x = VALIDITY_MARGIN_LEFT;
+	game->validityTextRec.y = VALIDITY_MARGIN_TOP;
+	
+	MyStr_t numFoundText = PrintInArenaStr(scratch, "%llu/%llu", game->numValidWordsFound, game->validWords.length);
+	game->numFoundTextRec.size = MeasureText(game->mainFont.font, numFoundText);
+	game->numFoundTextRec.x = ScreenSize.width - NUM_FOUND_MARGIN_RIGHT - game->numFoundTextRec.width;
+	game->numFoundTextRec.y = NUM_FOUND_MARGIN_TOP;
+	
+	game->currentWordRec.size = MeasureText(game->mainFont.font, game->currentWord);
+	game->currentWordRec.x = CURRENT_WORD_MARGIN_LEFT;
+	game->currentWordRec.y = ScreenSize.height - CURRENT_WORD_MARGIN_BOTTOM - game->currentWordRec.height;
+	
+	game->wordListRec.x = WORD_LIST_MARGIN_LEFT;
+	game->wordListRec.width = game->flowerRec.x - WORD_LIST_MARGIN_RIGHT - game->wordListRec.x;
+	game->wordListRec.y = game->validityTextRec.y + game->validityTextRec.height + VALIDITY_BOB_AMOUNT;
+	game->wordListRec.height = game->currentWordRec.y - game->wordListRec.y;
+	
+	i32 wordHeight = pig->debugFont.lineHeight;
+	game->wordListNumRows = FloorR32i((r32)game->wordListRec.height / (r32)wordHeight);
+	game->wordListRec.y = game->wordListRec.y + game->wordListRec.height/2;
+	game->wordListRec.height = game->wordListNumRows * wordHeight;
+	game->wordListRec.y -= game->wordListRec.height/2;
+	game->numWordListPages = MaxU64(1, CeilDivU64(game->validWords.length, game->wordListNumRows));
+	game->currentWordListPage = ClampU64(game->currentWordListPage, 0, game->numWordListPages-1);
+	
+	FreeScratchArena(scratch);
 }
 
 // +--------------------------------------------------------------+
@@ -111,7 +200,7 @@ void UpdateAppState_Game()
 			{
 				u64 readFileTime = EndPerfTime(readFileTimerIndex);
 				u64 lineStartIndex = 0;
-				u64 numWordsInFile = 0;
+				u64 numValidWordsInFile = 0;
 				u8 addWordsTimerIndex = StartPerfTime();
 				for (u64 cIndex = 0; cIndex < dictionaryFileContents.length; cIndex++)
 				{
@@ -121,13 +210,26 @@ void UpdateAppState_Game()
 						if (cIndex > lineStartIndex)
 						{
 							MyStr_t word = NewStr(cIndex - lineStartIndex, &dictionaryFileContents.chars[lineStartIndex]);
-							// PrintLine_D("Adding \"%.*s\"", StrPrint(word));
-							WordTreeLeaf_t* newLeaf = WordTreeAddLeaf(&game->dictionary, word);
-							if (newLeaf != nullptr)
+							if (IsValidWord(game->sourceWord, word))
 							{
-								newLeaf->value64 = 1;
-								numWordsInDictionary++;
-								numWordsInFile++;
+								// PrintLine_D("Adding \"%.*s\"", StrPrint(word));
+								WordTreeLeaf_t* newLeaf = WordTreeAddLeaf(&game->dictionary, word);
+								if (newLeaf != nullptr)
+								{
+									ValidWord_t* newValidWord = VarArrayAdd(&game->validWords, ValidWord_t);
+									NotNull(newValidWord);
+									ClearPointer(newValidWord);
+									newValidWord->guessed = false;
+									newValidWord->id = game->nextValidWordId;
+									game->nextValidWordId++;
+									newValidWord->word = AllocString(mainHeap, &word);
+									
+									newLeaf->value64 = newValidWord->id;
+									
+									numWordsInDictionary++;
+								}
+								
+								numValidWordsInFile++;
 							}
 						}
 						lineStartIndex = cIndex+1;
@@ -136,8 +238,8 @@ void UpdateAppState_Game()
 				}
 				u64 addWordsTime = EndPerfTime(addWordsTimerIndex);
 				PrintLine_I("Loaded %llu word%s from \"%s\" (read=" PERF_FORMAT_STR " parse=" PERF_FORMAT_STR ")",
-					numWordsInFile,
-					((numWordsInFile == 1) ? "" : "s"),
+					numValidWordsInFile,
+					((numValidWordsInFile == 1) ? "" : "s"),
 					dictionaryPaths[dIndex],
 					PERF_FORMAT(readFileTime),
 					PERF_FORMAT(addWordsTime)
@@ -152,7 +254,11 @@ void UpdateAppState_Game()
 		}
 		u64 totalDictionaryTime = EndPerfTime(totalDictionaryTimerIndex);
 		
-		PrintLine_I("Loaded %u dictionaries in " PERF_FORMAT_STR " (%llu words total)", ArrayCount(dictionaryPaths), PERF_FORMAT(totalDictionaryTime), numWordsInDictionary);
+		u8 sortValidWordsTimerIndex = StartPerfTime();
+		VarArraySort(&game->validWords, WordsSortingFunc, nullptr);
+		u64 sortValidWordsTime = EndPerfTime(sortValidWordsTimerIndex);
+		
+		PrintLine_I("Loaded %u dictionaries (%llu words total) in " PERF_FORMAT_STR " (sorted in " PERF_FORMAT_STR ")", ArrayCount(dictionaryPaths), numWordsInDictionary, PERF_FORMAT(totalDictionaryTime), PERF_FORMAT(sortValidWordsTime));
 		game->loadingDictionary = false;
 	}
 	
@@ -164,6 +270,18 @@ void UpdateAppState_Game()
 	if (game->incorrectAnimProgress > 0.0f)
 	{
 		UpdateAnimationDown(&game->incorrectAnimProgress, INCORRECT_SHAKE_ANIM_TIME);
+	}
+	
+	// +==============================+
+	// |  Update Word List Page Anim  |
+	// +==============================+
+	if (game->currentWordListPageAnim < (r32)game->currentWordListPage)
+	{
+		UpdateAnimationUpTo(&game->currentWordListPageAnim, WORD_LIST_PAGE_TURN_ANIM_TIME, (r32)game->currentWordListPage);
+	}
+	else if (game->currentWordListPageAnim > (r32)game->currentWordListPage)
+	{
+		UpdateAnimationDownTo(&game->currentWordListPageAnim, WORD_LIST_PAGE_TURN_ANIM_TIME, (r32)game->currentWordListPage);
 	}
 	
 	// +==============================+
@@ -205,7 +323,8 @@ void UpdateAppState_Game()
 		{
 			WordTreeLeaf_t* dictionaryLeaf = WordTreeGetLeaf(&game->dictionary, game->currentWord);
 			game->currentWordIsValid = (dictionaryLeaf != nullptr && dictionaryLeaf->value64 != 0);
-			PrintLine_D("\"%.*s\" %s a valid word", StrPrint(game->currentWord), game->currentWordIsValid ? "is" : "is NOT");
+			game->currentWordIsNotGuessed = (dictionaryLeaf != nullptr && dictionaryLeaf->value64 < game->nextValidWordId);
+			PrintLine_D("\"%.*s\" %s a valid word%s", StrPrint(game->currentWord), game->currentWordIsValid ? "is" : "is NOT", game->currentWordIsNotGuessed ? "" : " (but was already guessed)");
 		}
 		else
 		{
@@ -219,13 +338,23 @@ void UpdateAppState_Game()
 	if (BtnPressed(Btn_Up))
 	{
 		HandleBtnExtended(Btn_Up);
-		if (game->currentWord.length > MIN_WORD_LENGTH)
+		if (game->currentWord.length >= MIN_WORD_LENGTH)
 		{
-			if (game->currentWordIsValid)
+			if (game->currentWordIsValid && game->currentWordIsNotGuessed)
 			{
-				//TODO: Implement me!
+				WordTreeLeaf_t* leaf = WordTreeGetLeaf(&game->dictionary, game->currentWord);
+				Assert(leaf->value64 < game->nextValidWordId);
+				ValidWord_t* validWord = FindValidWordById(leaf->value64);
+				NotNull(validWord);
+				Assert(!validWord->guessed);
+				
+				validWord->guessed = true;
+				leaf->value64 = game->nextValidWordId;
+				game->numValidWordsFound++;
+				
 				game->currentWord.length = 0;
 				game->currentWordChanged = true;
+				
 			}
 			else
 			{
@@ -235,6 +364,26 @@ void UpdateAppState_Game()
 		else
 		{
 			PrintLine_W("Please enter a %d character or more word!", MIN_WORD_LENGTH);
+		}
+	}
+	
+	// +==================================+
+	// | Btn_Right/Btn_Left Change Pages  |
+	// +==================================+
+	if (BtnPressed(Btn_Right))
+	{
+		HandleBtnExtended(Btn_Right);
+		if (game->currentWordListPage+1 < game->numWordListPages)
+		{
+			game->currentWordListPage++;
+		}
+	}
+	if (BtnPressed(Btn_Left))
+	{
+		HandleBtnExtended(Btn_Left);
+		if (game->currentWordListPage > 0)
+		{
+			game->currentWordListPage--;
 		}
 	}
 	
@@ -335,12 +484,72 @@ void RenderAppState_Game(bool isOnTop)
 	// +==============================+
 	if (game->currentWord.length >= MIN_WORD_LENGTH)
 	{
-		v2i validTextPos = NewVec2i(5, 5);
-		if (game->currentWordIsValid) { validTextPos.y = RoundR32i(Oscillate(5, 10, 2000)); }
+		const char* validityText = (game->currentWordIsValid ? (game->currentWordIsNotGuessed ? "Valid!" : "Already Found") : "Nope");
+		v2i validityTextPos = NewVec2i(VALIDITY_MARGIN_LEFT, VALIDITY_MARGIN_TOP);
+		if (game->currentWordIsValid && game->currentWordIsNotGuessed) { validityTextPos.y = RoundR32i(Oscillate(VALIDITY_MARGIN_TOP, VALIDITY_MARGIN_TOP + VALIDITY_BOB_AMOUNT, VALIDITY_BOB_PERIOD)); }
 		PdBindFont(&game->mainFont);
 		PdSetDrawMode(kDrawModeXOR);
-		PdDrawText(game->currentWordIsValid ? "Valid!" : "Nope", validTextPos);
+		PdDrawText(validityText, validityTextPos);
 		PdSetDrawMode(kDrawModeInverted);
+	}
+	
+	// +==============================+
+	// |  Render numValidWordsFound   |
+	// +==============================+
+	{
+		MyStr_t numFoundText = PrintInArenaStr(scratch, "%llu/%llu", game->numValidWordsFound, game->validWords.length);
+		v2i numFoundTextSize = MeasureText(game->mainFont.font, numFoundText);
+		v2i numFoundTextPos = NewVec2i(ScreenSize.width - NUM_FOUND_MARGIN_RIGHT - numFoundTextSize.width, NUM_FOUND_MARGIN_TOP);
+		PdBindFont(&game->mainFont);
+		PdSetDrawMode(kDrawModeXOR);
+		PdDrawText(numFoundText, numFoundTextPos);
+		PdSetDrawMode(kDrawModeInverted);
+	}
+	
+	// +==============================+
+	// |       Render Word List       |
+	// +==============================+
+	{
+		char underscores[MAX_VALID_WORD_LENGTH];
+		MyMemSet(&underscores[0], '_', MAX_VALID_WORD_LENGTH);
+		
+		reci oldClipRec = PdAddClipRec(game->wordListRec);
+		PdBindFont(&pig->debugFont);
+		
+		u64 currentPage = (u64)FloorR32i(game->currentWordListPageAnim);
+		for (u64 pIndex = 0; pIndex < 2; pIndex++)
+		{
+			v2i textPos = NewVec2i(
+				game->wordListRec.x + RoundR32i(game->wordListRec.width * ((r32)currentPage - game->currentWordListPageAnim)),
+				game->wordListRec.y
+			);
+			
+			u64 startWordIndex = currentPage * (u64)game->wordListNumRows;
+			u64 endWordIndex = MinU64((currentPage+1) * (u64)game->wordListNumRows, game->validWords.length);
+			for (u64 wIndex = startWordIndex; wIndex < endWordIndex; wIndex++)
+			{
+				ValidWord_t* validWord = VarArrayGet(&game->validWords, wIndex, ValidWord_t);
+				NotNull(validWord);
+				if (validWord->guessed)
+				{
+					PdDrawText(validWord->word, textPos);
+				}
+				else if (pig->debugEnabled)
+				{
+					PdDrawTextPrint(textPos, "(%.*s)", StrPrint(validWord->word));
+				}
+				else
+				{
+					PdDrawText(NewStr(validWord->word.length, &underscores[0]), textPos);
+				}
+				textPos.y += pig->debugFont.lineHeight;
+			}
+			
+			if (BasicallyEqualR32(game->currentWordListPageAnim, (r32)currentPage)) { break; } //no need to draw the second page
+			currentPage++;
+		}
+		
+		PdSetClipRec(oldClipRec);
 	}
 	
 	// +==============================+
@@ -349,6 +558,8 @@ void RenderAppState_Game(bool isOnTop)
 	if (pig->debugEnabled)
 	{
 		LCDBitmapDrawMode oldDrawMode = PdSetDrawMode(kDrawModeNXOR);
+		
+		// PdDrawRec(game->wordListRec, kColorBlack); //TODO: Remove me!
 		
 		v2i textPos = NewVec2i(1, 1);
 		if (pig->perfGraph.enabled) { textPos.y += pig->perfGraph.mainRec.y + pig->perfGraph.mainRec.height + 1; }
