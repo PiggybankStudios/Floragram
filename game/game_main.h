@@ -18,6 +18,8 @@ struct GameGlobals_t
 	bool initialized;
 	
 	SpriteSheet_t btnPromptsSheet;
+	
+	MyStr_t sourceWord;
 };
 
 #endif //  _GAME_MAIN_H

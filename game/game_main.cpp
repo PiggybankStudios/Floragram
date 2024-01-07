@@ -37,6 +37,8 @@ AppState_t InitGame()
 	gl->btnPromptsSheet = LoadSpriteSheet(NewStr("Resources/Sheets/btn_prompts"), 8);
 	Assert(gl->btnPromptsSheet.isValid);
 	
+	gl->sourceWord = MyStr_Empty;
+	
 	pd->display->setRefreshRate((r32)REFRESH_RATE);
 	
 	return FIRST_APP_STATE;

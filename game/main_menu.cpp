@@ -41,6 +41,7 @@ void UpdateAppState_MainMenu()
 	//TODO: Remove me!
 	if (BtnPressed(Btn_A))
 	{
+		SetSourceWord("robbinsa"); //TODO: Make this an option or something
 		PushAppState(AppState_Game);
 	}
 	
