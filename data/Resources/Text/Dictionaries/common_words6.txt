@@ -1,3 +1,4 @@
+hugger
 accept
 access
 accord
@@ -2872,7 +2873,6 @@ gayest
 gazing
 geeing
 gelded
-genera
 genial
 genies
 genres
@@ -4124,7 +4124,6 @@ remade
 remake
 remiss
 remits
-renege
 renown
 rental
 rented
