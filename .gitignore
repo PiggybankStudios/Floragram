@@ -1,0 +1,12 @@
+build/*
+!build/build.bat
+lib/include/*
+!lib/include/README.txt
+*sublime-workspace
+engine/
+RawResources/
+data/*.exe
+data/*.dll
+data/*.pdb
+data/*.elf
+data/*.bin

@@ -1,0 +1,7 @@
+name=Floragram
+author=Taylor Robbins
+description=A little anagram game for the Playdate
+bundleID=com.piggy.floragram
+imagePath=Resources/launch_card.png
+version=0.1
+buildNumber=1
