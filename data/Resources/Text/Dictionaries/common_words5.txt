@@ -1407,7 +1407,6 @@ apron
 apter
 aptly
 arced
-arias
 aroma
 arson
 ashed
@@ -2868,7 +2867,6 @@ sands
 sandy
 saner
 sangs
-saris
 sassy
 satin
 saucy
@@ -3333,7 +3331,6 @@ waltz
 wands
 waned
 wanes
-wanna
 wards
 warts
 wasps

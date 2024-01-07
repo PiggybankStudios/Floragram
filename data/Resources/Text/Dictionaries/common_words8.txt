@@ -1700,7 +1700,6 @@ armament
 armchair
 aromatic
 arousing
-arraigns
 arraying
 arrivals
 arsenals

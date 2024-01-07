@@ -953,7 +953,6 @@ apes
 apex
 arcs
 ares
-aria
 arid
 arks
 aura
@@ -1628,7 +1627,6 @@ sacs
 sage
 sags
 saps
-sari
 sash
 saws
 scab
