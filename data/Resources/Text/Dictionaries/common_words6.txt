@@ -1,4 +1,5 @@
 hugger
+arctic
 accept
 access
 accord
@@ -4747,8 +4748,6 @@ taping
 tapped
 tariff
 tarred
-tartan
-tartar
 tarter
 tasked
 tassel

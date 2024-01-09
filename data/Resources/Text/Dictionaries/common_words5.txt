@@ -1835,7 +1835,6 @@ droop
 dross
 dryer
 ducts
-duded
 dudes
 duels
 duets
@@ -1847,7 +1846,6 @@ dunce
 dunes
 dungs
 dunks
-dunno
 duped
 dupes
 dusky
@@ -3113,7 +3111,6 @@ stung
 stunk
 suave
 sucks
-suede
 sulks
 sulky
 sunup

@@ -1,3 +1,4 @@
+militant
 absolute
 academic
 accepted
@@ -4114,7 +4115,6 @@ migraine
 migrants
 mildewed
 mileages
-militant
 militate
 militias
 milkiest
